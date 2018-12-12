@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
@@ -35,14 +36,52 @@ namespace BittrexOrderBookWatch.ConsoleApp
 
             var total = 0m;
             var sum = 0m;
+            var buckets = new List<Bucket>();
 
+            Bucket currBucket = null;
+            var nextRate = 0m;
+            var rateIncrement = 0.1m;
+            var maxRate = 2m;
 
             foreach (var resultItem in resultItems)
             {
                 total = resultItem.Rate * resultItem.Quantity;
                 sum += total;
 
-                Console.WriteLine($"askUSD={resultItem.Rate}, sizeXRP={resultItem.Quantity}, totalUSD={total}, sumUSD={sum}");
+                if (currBucket == null)
+                {
+                    currBucket = new Bucket() { Rate = resultItem.Rate, SizeXrp = resultItem.Quantity, Total = total, Sum = sum };
+                    nextRate += resultItem.Rate + rateIncrement;
+                    buckets.Add(currBucket);
+                }
+
+                if (resultItem.Rate >= nextRate)
+                {
+                    currBucket = new Bucket() { Rate = nextRate, SizeXrp = 0m, Total = 0m, Sum = 0m };
+                    nextRate += rateIncrement;
+                    buckets.Add(currBucket);
+                    Console.WriteLine($"new bucket @ {currBucket.Rate}");
+                }
+
+                currBucket.SizeXrp += resultItem.Quantity;
+                currBucket.Total += total;
+                currBucket.Sum += sum;
+
+                //Console.WriteLine($"askUSD={resultItem.Rate}, sizeXRP={resultItem.Quantity}, totalUSD={total}, sumUSD={sum}");
+
+                if (resultItem.Rate >= maxRate)
+                {
+                    break;
+                }
+            }
+
+
+
+            Console.WriteLine("-------------------------------------------");
+
+            foreach(var b in buckets)
+            {
+                Console.WriteLine($"askUSD={b.Rate}, sizeXRP={b.SizeXrp}, totalUSD={b.Total}, sumUSD={b.Sum}");
             }
 
 
@@ -78,5 +117,13 @@ namespace BittrexOrderBookWatch.ConsoleApp
 
         [JsonProperty(PropertyName = "rate")]
         public decimal Rate { get; set; }
+    }
+
+    public class Bucket
+    {
+        public decimal Rate { get; set; }
+        public decimal SizeXrp { get; set; }
+        public decimal Total { get; set; }
+        public decimal Sum { get; set; }
     }
 }
